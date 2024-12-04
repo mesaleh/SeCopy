@@ -6,7 +6,7 @@
 
 BOOL WriteToConsole(DWORD stdHandle, LPCSTR message) {
     HANDLE hConsole = GetStdHandle(stdHandle);
-    if (hConsole == INVALID_HANDLE_VALUE) {
+    if (hConsole == INVALID_HANDLE_VALUE || hConsole == NULL) {
         return FALSE;
     }
 
@@ -14,7 +14,14 @@ BOOL WriteToConsole(DWORD stdHandle, LPCSTR message) {
     size_t len = lstrlenA(message);
     if (len > MAXDWORD) return FALSE;  // Prevent overflow
 
-    return WriteConsoleA(hConsole, message, (DWORD)len, &written, NULL) &&
+    // Ensure message ends with \r\n if it doesn't already
+    if (len >= 2 && (message[len-2] != '\r' || message[len-1] != '\n')) {
+        BOOL result = WriteFile(hConsole, message, (DWORD)len, &written, NULL);
+        result &= WriteFile(hConsole, "\r\n", 2, &written, NULL);
+        return result && written == 2;
+    }
+
+    return WriteFile(hConsole, message, (DWORD)len, &written, NULL) &&
            written == len;
 }
 
@@ -130,10 +137,10 @@ BOOL CopyFileWithPrivileges(LPCSTR srcPath, LPCSTR dstPath)
         }
 
         // Check for read error
-        if (GetLastError() != ERROR_HANDLE_EOF) {
-            PrintError("Read failed", GetLastError());
-            __leave;
-        }
+        // if (GetLastError() != ERROR_HANDLE_EOF) {
+        //     PrintError("Read failed", GetLastError());
+        //     __leave;
+        // }
 
         success = TRUE;
     }
@@ -149,13 +156,13 @@ int main(int argc, CHAR* argv[])
 {
     // Verify we're running in console mode
     HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    if (hStdOut == INVALID_HANDLE_VALUE) {
+    if (hStdOut == INVALID_HANDLE_VALUE || hStdOut == NULL) {
         return 1;
     }
 
     // Check arguments
     if (argc != 3) {
-        WriteToConsole(STD_ERROR_HANDLE, "Usage: SeCopy.exe <source_file> <destination_file>\r\n");
+        WriteToConsole(STD_ERROR_HANDLE, "Usage: SeCopy.exe <source_file> <destination_file>\r\n\r\n");
         return 1;
     }
 
@@ -171,21 +178,19 @@ int main(int argc, CHAR* argv[])
 
         // Enable both privileges
         if (!SetPrivilege(hToken, SE_BACKUP_NAME, TRUE)) {
-            WriteToConsole(STD_ERROR_HANDLE, "Failed to enable SeBackupPrivilege\r\n");
-            __leave;
+            WriteToConsole(STD_ERROR_HANDLE, "Failed to enable SeBackupPrivilege");
         }
 
         if (!SetPrivilege(hToken, SE_RESTORE_NAME, TRUE)) {
-            WriteToConsole(STD_ERROR_HANDLE, "Failed to enable SeRestorePrivilege\r\n");
-            __leave;
+            WriteToConsole(STD_ERROR_HANDLE, "Failed to enable SeRestorePrivilege");
         }
 
         // Try to copy the file with privileges
         if (CopyFileWithPrivileges(argv[1], argv[2])) {
-            WriteToConsole(STD_OUTPUT_HANDLE, "File copied successfully\r\n");
+            WriteToConsole(STD_OUTPUT_HANDLE, "File copied successfully");
             success = TRUE;
         } else {
-            WriteToConsole(STD_ERROR_HANDLE, "Failed to copy file\r\n");
+            WriteToConsole(STD_ERROR_HANDLE, "Failed to copy file");
         }
     }
     __finally {
