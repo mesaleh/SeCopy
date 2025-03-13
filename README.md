@@ -4,7 +4,7 @@ A Windows file copy utility for pentesters that leverages backup/restore privile
 
 ## Features
 - Read any file regardless of NTFS permissions
-- Access protected files like proof.txt and registry hives
+- Access protected files like system files and registry hives
 - Write to protected locations like System32
 - Replace locked system files
 
